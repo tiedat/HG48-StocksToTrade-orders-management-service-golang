@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPing(t *testing.T) {
@@ -23,10 +24,12 @@ func TestPing(t *testing.T) {
 		},
 	}
 
+	s, err := newServer()
+	require.NoError(t, err)
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			http.HandlerFunc(ping).ServeHTTP(tc.rec, tc.req)
-
+			http.HandlerFunc(s.ping).ServeHTTP(tc.rec, tc.req)
 			assert.Equal(t, tc.expectedBody, tc.rec.Body.String())
 		})
 	}

@@ -1,13 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestOrder(t *testing.T) {
+func TestOrdersHandler(t *testing.T) {
 	tests := []struct {
 		name           string
 		rec            *httptest.ResponseRecorder
@@ -17,15 +18,18 @@ func TestOrder(t *testing.T) {
 		{
 			"ok",
 			httptest.NewRecorder(),
-			httptest.NewRequest("GET", "/order/getAll", nil),
+			httptest.NewRequest("GET", "/orders", nil),
 			200,
 		},
 	}
 
+	s, err := newServer(withDB(db))
+	require.NoError(t, err)
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			http.HandlerFunc(getAllOrderHandler).ServeHTTP(tc.rec, tc.req)
-			fmt.Print(tc.rec.Body)
+			http.HandlerFunc(s.ordersHandler).ServeHTTP(tc.rec, tc.req)
+			t.Log(tc.rec.Body)
 		})
 	}
 }

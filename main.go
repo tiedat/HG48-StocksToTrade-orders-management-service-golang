@@ -8,11 +8,27 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	// The HTTP Server
-	server := &http.Server{Addr: "0.0.0.0:3333", Handler: newRouter()}
+	cfg, err := loadConfig(".")
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to load configuration file")
+	}
+
+	db, err := createConnection(&cfg)
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create database connection")
+	}
+	defer db.Close()
+
+	// The HTTP server
+	s, err := newServer(withDB(db))
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create new server")
+	}
 
 	// Server run context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
@@ -34,7 +50,7 @@ func main() {
 		}()
 
 		// Trigger graceful shutdown
-		err := server.Shutdown(shutdownCtx)
+		err := s.hs.Shutdown(shutdownCtx)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -42,8 +58,7 @@ func main() {
 	}()
 
 	// Run the server
-	err := server.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
+	if err := s.hs.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 
