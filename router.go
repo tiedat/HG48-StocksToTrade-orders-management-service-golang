@@ -17,6 +17,7 @@ func newRouter() http.Handler {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	r.Get("/ping", ping)
+	r.Get("/order/getAll", getAllOrderHandler)
 
 	return r
 }
