@@ -2,37 +2,27 @@ package main
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	DBDriver string `mapstructure:"db_drive"`
+	DBDriver string `mapstructure:"db_driver"`
 	DBSource string `mapstructure:"db_source"`
 }
 
-func createConnection() (*sql.DB, error) {
-
-	config, cfErr := loadConfig(".")
-
-	if cfErr != nil {
-		return nil, cfErr
-	}
-
+func createConnection(cfg *Config) (*sql.DB, error) {
 	// open database
-	db, err := sql.Open(config.DBDriver, config.DBSource)
-
+	db, err := sql.Open(cfg.DBDriver, cfg.DBSource)
 	if err != nil {
 		return nil, err
 	}
 
 	// check db
-	err = db.Ping()
-
-	if err != nil {
+	if err := db.Ping(); err != nil {
 		return nil, err
 	}
-
 	return db, nil
 }
 
