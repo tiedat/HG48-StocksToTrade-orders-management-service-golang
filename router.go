@@ -26,7 +26,8 @@ func (s *server) setupRouter() {
 	}))
 
 	r.Get("/ping", s.ping)
-	r.Get("/orders", s.ordersHandler)
+	r.Get("/orders/getAll", s.ordersHandler)
+	r.Get("/orders/{email}", s.orderDetailHandler)
 
 	s.hs.Handler = r
 }
