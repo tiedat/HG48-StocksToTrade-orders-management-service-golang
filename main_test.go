@@ -25,9 +25,13 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not start resource: %s", err)
 	}
 
+	dbHost := "localhost"
+	if postgresDBHost := os.Getenv("POSTGRES_DB_HOST"); postgresDBHost != "" {
+		dbHost = postgresDBHost
+	}
 	if err := pool.Retry(func() error {
 		var err error
-		db, err = sql.Open("pgx", fmt.Sprintf("postgres://postgres:123456@localhost:%s/postgres", resource.GetPort("5432/tcp")))
+		db, err = sql.Open("pgx", fmt.Sprintf("postgres://postgres:123456@%s:%s/postgres", dbHost, resource.GetPort("5432/tcp")))
 		if err != nil {
 			return err
 		}
