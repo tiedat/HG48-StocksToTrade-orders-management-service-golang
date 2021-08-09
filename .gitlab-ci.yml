@@ -1,0 +1,37 @@
+image: golang:latest
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  REPO_NAME: gitlab.com/HG48-StocksToTrade/orders-management-service-golang
+  POSTGRES_DB_HOST: docker
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_IMAGE: docker:19.03.8-dind
+
+.go-cache:
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  before_script:
+    - mkdir -p .go
+  cache:
+    paths:
+      - .go/pkg/mod/
+
+test:
+  stage: test
+  services:
+    - $DOCKER_IMAGE
+  extends: .go-cache
+  script:
+    - go test -race ./...
+
+compile:
+  stage: build
+  extends: .go-cache
+  script:
+    - go build .
