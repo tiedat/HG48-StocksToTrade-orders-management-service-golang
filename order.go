@@ -18,6 +18,17 @@ type Order struct {
 	UpdatedAt  *time.Time `json:"updated_at"`
 }
 
+type RecurlySubscription struct {
+	ID                    *uint64 `json:"id"`
+	UserId                *uint64 `json:"user_id"`
+	RecurlySubscriptionId *string `json:"recurly_subscription_id"`
+	UtmSource             *string `json:"utm_source"`
+	UtmContent            *string `json:"utm_content"`
+	UtmMedium             *string `json:"utm_medium"`
+	UtmTerm               *string `json:"utm_term"`
+	UtmCampaign           *string `json:"utm_campaign"`
+}
+
 func (s *server) ordersHandler(w http.ResponseWriter, r *http.Request) {
 	orders, err := s.orders()
 	if err != nil {
@@ -122,4 +133,39 @@ func (s *server) cancelSubscription(w http.ResponseWriter, r *http.Request) {
 	if err := row.Scan(&referralId); err == nil {
 		s.db.Exec(`update referrals set date_expired = NOW(), is_expired = true where id = $1`, referralId)
 	}
+}
+
+func (s *server) reactiveSubscription(w http.ResponseWriter, r *http.Request) {
+	email := chi.URLParam(r, "email")
+	//todo select user have email = email and is not dev
+	row := s.db.QueryRow(`SELECT id FROM users WHERE email LIKE $1 AND NOT is_dev`, email)
+	var userId uint64
+	if err := row.Scan(&userId); err != nil {
+		json.NewEncoder(w).Encode(fmt.Sprintf("user not found for %v", email))
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	s.db.Exec(`update users set subscription_expired = false where id = $1`, userId)
+}
+
+func (s *server) getRecurlySubscription(subscriptionId string) ([]*RecurlySubscription, error) {
+	sqlStatement := `SELECT id, user_id, recurly_subscription_id, utm_source, utm_content, utm_medium, utm_term, utm_campaign FROM recurly_subs where recurly_subscription_id = $1`
+
+	rows, err := s.db.Query(sqlStatement, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []*RecurlySubscription
+	for rows.Next() {
+		sub := new(RecurlySubscription)
+		if err := rows.Scan(&sub.ID, &sub.UserId, &sub.RecurlySubscriptionId, &sub.UtmSource, &sub.UtmContent, &sub.UtmMedium, &sub.UtmTerm, &sub.UtmCampaign); err != nil {
+			return nil, err
+		}
+		subs = append(subs, sub)
+	}
+
+	return subs, err
 }
