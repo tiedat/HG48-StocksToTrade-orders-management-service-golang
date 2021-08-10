@@ -21,6 +21,18 @@ func TestOrdersHandler(t *testing.T) {
 			httptest.NewRequest("GET", "/orders", nil),
 			200,
 		},
+		{
+			"ok",
+			httptest.NewRecorder(),
+			httptest.NewRequest("GET", "/orders/", nil),
+			404,
+		},
+		{
+			"ok",
+			httptest.NewRecorder(),
+			httptest.NewRequest("GET", "/orders/stt_testenv_user1@mailinator.com", nil),
+			200,
+		},
 	}
 
 	s, err := newServer(withDB(db))
