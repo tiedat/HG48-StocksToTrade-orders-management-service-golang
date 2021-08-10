@@ -9,12 +9,12 @@ import (
 )
 
 type Order struct {
-	ID         uint64     `json:"id,omitempty"`
-	Email      string     `json:"email,omitempty"`
-	ProductID  int        `json:"product_id,omitempty"`
-	RecurlyUID string     `json:"recurly_uid,omitempty"`
-	CreatedAt  *time.Time `json:"create_at,omitempty"`
-	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
+	ID         *uint64    `json:"id"`
+	Email      *string    `json:"email"`
+	ProductID  *int       `json:"product_id"`
+	RecurlyUID *string    `json:"-"`
+	CreatedAt  *time.Time `json:"create_at"`
+	UpdatedAt  *time.Time `json:"updated_at"`
 }
 
 func (s *server) ordersHandler(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +55,12 @@ func (s *server) orders() ([]*Order, error) {
 }
 
 func (s *server) orderDetailHandler(w http.ResponseWriter, r *http.Request) {
+	email := chi.URLParam(r, "email")
+	if email == "" {
+		logrus.Error("path param email is empty")
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 	order, err := s.getOrderByEmail(chi.URLParam(r, "email"))
 	if err != nil {
 		logrus.WithError(err).Error("failed to get orders from db")
@@ -66,7 +72,6 @@ func (s *server) orderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		logrus.WithError(err).Error("failed to encode orders response")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-
 	}
 }
 
@@ -79,5 +84,4 @@ func (s *server) getOrderByEmail(email string) (*Order, error) {
 		return nil, err
 	}
 	return order, nil
-
 }
