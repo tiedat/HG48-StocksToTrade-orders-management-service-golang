@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/sirupsen/logrus"
@@ -99,54 +101,72 @@ func (s *server) getOrderByEmail(email string) (*Order, error) {
 }
 
 // hard code handler function for test
-func (s *server) cancelSubscription(w http.ResponseWriter, r *http.Request) {
-	email := chi.URLParam(r, "email")
-	//todo select user have email = email and is not dev
-	row := s.db.QueryRow(`SELECT id FROM users WHERE email LIKE $1 AND NOT is_dev`, email)
+func (s *server) cancelSubscription(email string) error {
+
+	//select user have email = email and is not dev
 	var userId uint64
-	if err := row.Scan(&userId); err != nil {
-		json.NewEncoder(w).Encode(fmt.Sprintf("user not found for %v", email))
-		w.WriteHeader(http.StatusNotFound)
-		return
+	getUserErr := s.db.QueryRow(`SELECT id FROM users WHERE email LIKE $1 AND NOT is_dev`, email).Scan(&userId)
+
+	if errors.Is(getUserErr, sql.ErrNoRows) {
+		return errors.New(fmt.Sprintf("user not found for %v", email))
+	} else if getUserErr != nil {
+		return getUserErr
 	}
 
-	// todo entitlementLog create new event with user, SUBSCRIPTION_EXPIRED, false
+	// entitlementLog create new event with user, SUBSCRIPTION_EXPIRED, false
 	// self.create user: user, event: name, ent_nasdaq: flag,
 	// ent_nyse: flag, ent_otc: flag, ent_date_nasdaq: date,
 	// ent_date_nyse: date, ent_date_otc: date
-	s.db.Exec(`INSERT INTO entitlement_logs (ent_date_nasdaq,ent_date_nyse,ent_date_otc,created_at,updated_at,user_id,"event") VALUES (NOW(),NOW(),NOW(),NOW(),NOW(),$1,'subscription expired')`, userId)
+	_, insertEntitlementLogErr := s.db.Exec(`INSERT INTO entitlement_logs (ent_date_nasdaq,ent_date_nyse,ent_date_otc,created_at,updated_at,user_id,"event") VALUES (NOW(),NOW(),NOW(),NOW(),NOW(),$1,'subscription expired')`, userId)
+	if insertEntitlementLogErr != nil {
+		return insertEntitlementLogErr
+	}
 
-	//todo user.nyse_entry.present? -> user.nyse_entry.update!
-	row = s.db.QueryRow(`select id from nyse_entries ne where user_id = $1 order by created_at asc offset 1`, userId)
-
+	// user.nyse_entry.present? -> user.nyse_entry.update!
 	var nyseEntryId uint64
-	if err := row.Scan(&nyseEntryId); err == nil {
-		s.db.Exec(`update nyse_entries set void_agreement = true, void_agreement_date = NOW() where id = $1`, nyseEntryId)
+	getNyseEntryErr := s.db.QueryRow(`select id from nyse_entries ne where user_id = $1 order by created_at asc offset 1`, userId).Scan(&nyseEntryId)
+
+	if getNyseEntryErr == nil {
+		_, updateNyseErr := s.db.Exec(`update nyse_entries set void_agreement = true, void_agreement_date = NOW() where id = $1`, nyseEntryId)
+		if updateNyseErr != nil {
+			return updateNyseErr
+		}
 	}
-	//todo user.update
-	s.db.Exec(`update users set subscription_expired = true, signed_agreements = false, nyse_token = null where id = $1`, userId)
-
-	//todo referral exist -> referral.update
-	row = s.db.QueryRow(`select id from referrals where not is_cancelled and not is_expired where user_id = $1`, userId)
-
+	// user.update
+	_, updateUserErr := s.db.Exec(`update users set subscription_expired = true, signed_agreements = false, nyse_token = null where id = $1`, userId)
+	if updateUserErr != nil {
+		return updateUserErr
+	}
+	// referral exist -> referral.update
 	var referralId uint64
-	if err := row.Scan(&referralId); err == nil {
-		s.db.Exec(`update referrals set date_expired = NOW(), is_expired = true where id = $1`, referralId)
+	getReferralErr := s.db.QueryRow(`select id from referrals where not is_cancelled and not is_expired where user_id = $1`, userId).Scan(&referralId)
+
+	if getReferralErr == nil {
+		_, updateReferralErr := s.db.Exec(`update referrals set date_expired = NOW(), is_expired = true where id = $1`, referralId)
+		if updateReferralErr != nil {
+			return updateReferralErr
+		}
 	}
+	return nil
 }
 
-func (s *server) reactiveSubscription(w http.ResponseWriter, r *http.Request) {
-	email := chi.URLParam(r, "email")
-	//todo select user have email = email and is not dev
-	row := s.db.QueryRow(`SELECT id FROM users WHERE email LIKE $1 AND NOT is_dev`, email)
+func (s *server) reactiveSubscription(email string) error {
+	// select user have email = email and is not dev
 	var userId uint64
-	if err := row.Scan(&userId); err != nil {
-		json.NewEncoder(w).Encode(fmt.Sprintf("user not found for %v", email))
-		w.WriteHeader(http.StatusNotFound)
-		return
+	getUserErr := s.db.QueryRow(`SELECT id FROM users WHERE email LIKE $1 AND NOT is_dev`, email).Scan(&userId)
+
+	if errors.Is(getUserErr, sql.ErrNoRows) {
+		return errors.New(fmt.Sprintf("user not found for %v", email))
+	} else if getUserErr != nil {
+		return getUserErr
 	}
 
-	s.db.Exec(`update users set subscription_expired = false where id = $1`, userId)
+	_, updateUserErr := s.db.Exec(`update users set subscription_expired = false where id = $1`, userId)
+	if updateUserErr != nil {
+		return updateUserErr
+	}
+
+	return nil
 }
 
 func (s *server) getRecurlySubscription(subscriptionId string) ([]*RecurlySubscription, error) {
