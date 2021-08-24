@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,4 +33,13 @@ func TestOrdersHandler(t *testing.T) {
 			t.Log(tc.rec.Body)
 		})
 	}
+}
+
+func TestOrders(t *testing.T) {
+	s, err := newServer(withDB(db))
+	require.NoError(t, err)
+
+	orders, err := s.orders()
+	require.NoError(t, err)
+	assert.Len(t, orders, 2)
 }
