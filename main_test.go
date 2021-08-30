@@ -44,7 +44,21 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, sqlQueryName := range []string{"create_orders_table", "create_email_index", "create_orders_data"} {
+	for _, sqlQueryName := range []string{
+		"create_citext_extension",
+		"create_orders_table",
+		"create_email_index",
+		"create_orders_data",
+		"create_users_table",
+		"create_users_data",
+		"create_entitlement_logs_table",
+		"create_nyse_entries_table",
+		"create_nyse_entries_data",
+		"create_referrals_table",
+		"create_referrals_data",
+		"create_recurly_subs_table",
+		"create_recurly_subs_data",
+	} {
 		if _, err := dot.Exec(db, sqlQueryName); err != nil {
 			log.Fatalf("failed to exectue sql command: %s, error: %v", sqlQueryName, err)
 		}
