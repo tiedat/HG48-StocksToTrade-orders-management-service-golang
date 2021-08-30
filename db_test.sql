@@ -28,9 +28,9 @@ CREATE
 INDEX index_orders_on_email ON public.orders USING btree (email);
 
 -- name: create_orders_data
-INSERT INTO orders (email, created_at, updated_at)
-VALUES ('foo@example.com', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-       ('bar@example.com', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO orders (email, product_id, created_at, updated_at)
+VALUES ('foo@example.com', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ('bar@example.com', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- name: create_users_table
 CREATE TABLE public.users
