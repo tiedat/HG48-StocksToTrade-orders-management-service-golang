@@ -38,6 +38,15 @@ func TestOrdersHandler(t *testing.T) {
 	}
 }
 
+func TestOrders(t *testing.T) {
+	s, err := newServer(withDB(db))
+	require.NoError(t, err)
+
+	orders, err := s.orders()
+	require.NoError(t, err)
+	assert.Len(t, orders, 2)
+}
+
 func TestGetOrderDetail(t *testing.T) {
 	tests := []struct {
 		name           string
