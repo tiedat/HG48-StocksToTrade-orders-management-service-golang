@@ -13,10 +13,10 @@ import (
 )
 
 type Order struct {
-	ID         *uint64    `json:"id"`
-	Email      *string    `json:"email"`
-	ProductID  *int       `json:"product_id"`
-	RecurlyUID *string    `json:"-"`
+	ID         uint64    `json:"id"`
+	Email      string    `json:"email"`
+	ProductID  int       `json:"product_id"`
+	RecurlyUID string    `json:"-"`
 	CreatedAt  *time.Time `json:"create_at"`
 	UpdatedAt  *time.Time `json:"updated_at"`
 }
@@ -36,11 +36,11 @@ func (s *server) ordersHandler(w http.ResponseWriter, r *http.Request) {
 	orders, err := s.orders()
 	if err != nil {
 		logrus.WithError(err).Error("failed to get orders from db")
-		w.WriteHeader(http.StatusInternalServerError)
+		s.writeResponse(w, http.StatusInternalServerError, "failed to get orders from db")
 		return
 	}
 
-	s.writeBody(w, orders)
+	s.writeResponse(w, http.StatusOK, orders)
 }
 
 func (s *server) orders() ([]*Order, error) {
@@ -69,26 +69,25 @@ func (s *server) orderDetailHandler(w http.ResponseWriter, r *http.Request) {
 	order, err := s.getOrderByEmail(chi.URLParam(r, "email"))
 
 	if errors.Is(err, sql.ErrNoRows) {
-		w.WriteHeader(http.StatusNotFound)
-		s.writeBody(w, "email not found")
+		s.writeResponse(w, http.StatusNotFound,"email not found")
 		return
 	}
 
 	if err != nil {
 		logrus.WithError(err).Error("failed to get orders from db")
-		w.WriteHeader(http.StatusInternalServerError)
+		s.writeResponse(w, http.StatusInternalServerError, "failed to get orders from db")
 		return
 	}
 
-	s.writeBody(w, order)
+	s.writeResponse(w,http.StatusOK, order)
 }
 
 func (s *server) getOrderByEmail(email string) (*Order, error) {
-	sqlStatement := `SELECT email, product_id FROM orders WHERE email = $1`
+	sqlStatement := `SELECT id, email, product_id FROM orders WHERE email = $1`
 	row := s.db.QueryRow(sqlStatement, email)
 
 	order := new(Order)
-	if err := row.Scan(&order.Email, &order.ProductID); err != nil {
+	if err := row.Scan(&order.ID, &order.Email, &order.ProductID); err != nil {
 		return nil, err
 	}
 	return order, nil
@@ -195,8 +194,9 @@ func (s *server) getRecurlySubscription(subscriptionId string) ([]*RecurlySubscr
 	return subs, err
 }
 
-// always return func after writeBody
-func (s *server) writeBody(w http.ResponseWriter, b interface{}) {
+// always return func after writeResponse
+func (s *server) writeResponse(w http.ResponseWriter, statusCode int, b interface{}) {
+	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(b); err != nil {
 		logrus.WithError(err).Error("failed to encode response")
 		w.WriteHeader(http.StatusInternalServerError)

@@ -65,7 +65,7 @@ func TestGetOrderDetail(t *testing.T) {
 			httptest.NewRecorder(),
 			httptest.NewRequest("GET", "/orders/foo@example.com", nil),
 			200,
-			"{\"id\":null,\"email\":\"foo@example.com\",\"product_id\":null,\"create_at\":null,\"updated_at\":null}\n",
+			"{\"id\":1,\"email\":\"foo@example.com\",\"product_id\":1,\"create_at\":null,\"updated_at\":null}\n",
 		},
 	}
 
