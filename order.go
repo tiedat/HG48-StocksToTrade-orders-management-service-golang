@@ -22,9 +22,9 @@ type Order struct {
 }
 
 type RecurlySubscription struct {
-	ID                    *uint64 `json:"id"`
-	UserId                *uint64 `json:"user_id"`
-	RecurlySubscriptionId *string `json:"recurly_subscription_id"`
+	ID                    uint64 `json:"id"`
+	UserId                uint64 `json:"user_id"`
+	RecurlySubscriptionId string `json:"recurly_subscription_id"`
 	UtmSource             *string `json:"utm_source"`
 	UtmContent            *string `json:"utm_content"`
 	UtmMedium             *string `json:"utm_medium"`
@@ -40,11 +40,7 @@ func (s *server) ordersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(orders); err != nil {
-		logrus.WithError(err).Error("failed to encode orders response")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	s.writeBody(w, orders)
 }
 
 func (s *server) orders() ([]*Order, error) {
@@ -70,24 +66,21 @@ func (s *server) orders() ([]*Order, error) {
 }
 
 func (s *server) orderDetailHandler(w http.ResponseWriter, r *http.Request) {
-	email := chi.URLParam(r, "email")
-	if email == "" {
-		logrus.Error("path param email is empty")
+	order, err := s.getOrderByEmail(chi.URLParam(r, "email"))
+
+	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNotFound)
+		s.writeBody(w, "email not found")
 		return
 	}
-	order, err := s.getOrderByEmail(chi.URLParam(r, "email"))
+
 	if err != nil {
 		logrus.WithError(err).Error("failed to get orders from db")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(order); err != nil {
-		logrus.WithError(err).Error("failed to encode orders response")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	s.writeBody(w, order)
 }
 
 func (s *server) getOrderByEmail(email string) (*Order, error) {
@@ -125,28 +118,32 @@ func (s *server) cancelSubscription(email string) error {
 
 	// user.nyse_entry.present? -> user.nyse_entry.update!
 	var nyseEntryId uint64
-	getNyseEntryErr := s.db.QueryRow(`select id from nyse_entries ne where user_id = $1 order by created_at asc offset 1`, userId).Scan(&nyseEntryId)
+	getNyseEntryErr := s.db.QueryRow(`SELECT id FROM nyse_entries ne WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`, userId).Scan(&nyseEntryId)
 
 	if getNyseEntryErr == nil {
-		_, updateNyseErr := s.db.Exec(`update nyse_entries set void_agreement = true, void_agreement_date = NOW() where id = $1`, nyseEntryId)
+		_, updateNyseErr := s.db.Exec(`UPDATE nyse_entries SET void_agreement = TRUE, void_agreement_date = NOW() WHERE id = $1`, nyseEntryId)
 		if updateNyseErr != nil {
 			return updateNyseErr
 		}
+	} else if !errors.Is(getNyseEntryErr, sql.ErrNoRows) {
+		return getNyseEntryErr
 	}
 	// user.update
-	_, updateUserErr := s.db.Exec(`update users set subscription_expired = true, signed_agreements = false, nyse_token = null where id = $1`, userId)
+	_, updateUserErr := s.db.Exec(`UPDATE users SET subscription_expired = TRUE, signed_agreements = FALSE, nyse_token = NULL WHERE id = $1`, userId)
 	if updateUserErr != nil {
 		return updateUserErr
 	}
 	// referral exist -> referral.update
 	var referralId uint64
-	getReferralErr := s.db.QueryRow(`select id from referrals where not is_cancelled and not is_expired where user_id = $1`, userId).Scan(&referralId)
+	getReferralErr := s.db.QueryRow(`SELECT id FROM referrals WHERE NOT is_cancelled AND NOT is_expired AND user_id = $1 `, userId).Scan(&referralId)
 
 	if getReferralErr == nil {
-		_, updateReferralErr := s.db.Exec(`update referrals set date_expired = NOW(), is_expired = true where id = $1`, referralId)
+		_, updateReferralErr := s.db.Exec(`UPDATE referrals SET date_expired = NOW(), is_expired = TRUE WHERE id = $1`, referralId)
 		if updateReferralErr != nil {
 			return updateReferralErr
 		}
+	} else if !errors.Is(getReferralErr, sql.ErrNoRows) {
+		return getReferralErr
 	}
 	return nil
 }
@@ -162,7 +159,7 @@ func (s *server) reactiveSubscription(email string) error {
 		return getUserErr
 	}
 
-	_, updateUserErr := s.db.Exec(`update users set subscription_expired = false where id = $1`, userId)
+	_, updateUserErr := s.db.Exec(`UPDATE users SET subscription_expired = FALSE WHERE id = $1`, userId)
 	if updateUserErr != nil {
 		return updateUserErr
 	}
@@ -182,11 +179,26 @@ func (s *server) getRecurlySubscription(subscriptionId string) ([]*RecurlySubscr
 	var subs []*RecurlySubscription
 	for rows.Next() {
 		sub := new(RecurlySubscription)
-		if err := rows.Scan(&sub.ID, &sub.UserId, &sub.RecurlySubscriptionId, &sub.UtmSource, &sub.UtmContent, &sub.UtmMedium, &sub.UtmTerm, &sub.UtmCampaign); err != nil {
+		if err := rows.Scan(&sub.ID,
+			&sub.UserId,
+			&sub.RecurlySubscriptionId,
+			&sub.UtmSource,
+			&sub.UtmContent,
+			&sub.UtmMedium,
+			&sub.UtmTerm,
+			&sub.UtmCampaign); err != nil {
 			return nil, err
 		}
 		subs = append(subs, sub)
 	}
 
 	return subs, err
+}
+
+// always return func after writeBody
+func (s *server) writeBody(w http.ResponseWriter, b interface{}) {
+	if err := json.NewEncoder(w).Encode(b); err != nil {
+		logrus.WithError(err).Error("failed to encode response")
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
