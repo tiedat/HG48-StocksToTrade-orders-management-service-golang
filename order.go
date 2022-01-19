@@ -13,10 +13,10 @@ import (
 )
 
 type Order struct {
-	ID         uint64    `json:"id"`
-	Email      string    `json:"email"`
-	ProductID  int       `json:"product_id"`
-	RecurlyUID string    `json:"-"`
+	ID         uint64     `json:"id"`
+	Email      string     `json:"email"`
+	ProductID  int        `json:"product_id"`
+	RecurlyUID string     `json:"-"`
 	CreatedAt  *time.Time `json:"create_at"`
 	UpdatedAt  *time.Time `json:"updated_at"`
 }
@@ -69,7 +69,7 @@ func (s *server) orderDetailHandler(w http.ResponseWriter, r *http.Request) {
 	order, err := s.getOrderByEmail(chi.URLParam(r, "email"))
 
 	if errors.Is(err, sql.ErrNoRows) {
-		s.writeResponse(w, http.StatusNotFound,"email not found")
+		s.writeResponse(w, http.StatusNotFound, "email not found")
 		return
 	}
 
@@ -79,7 +79,7 @@ func (s *server) orderDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.writeResponse(w,http.StatusOK, order)
+	s.writeResponse(w, http.StatusOK, order)
 }
 
 func (s *server) getOrderByEmail(email string) (*Order, error) {
@@ -194,7 +194,7 @@ func (s *server) getRecurlySubscription(subscriptionId string) ([]*RecurlySubscr
 	return subs, err
 }
 
-// always return func after writeResponse
+// *** always return after writeResponse
 func (s *server) writeResponse(w http.ResponseWriter, statusCode int, b interface{}) {
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(b); err != nil {
